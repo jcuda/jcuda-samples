@@ -70,6 +70,11 @@
         </dependency>
         <dependency>
             <groupId>org.jcuda</groupId>
+            <artifactId>jnvgraph</artifactId>
+            <version>${jcuda.jcudaVersion}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jcuda</groupId>
             <artifactId>jcuda-vec</artifactId>
             <version>0.0.2-SNAPSHOT</version>
         </dependency>
