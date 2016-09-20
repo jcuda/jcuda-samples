@@ -1,0 +1,6 @@
+JCudaVec/target/
+/JCudaSamples/cudnn64_5.dll
+/JCudaSamples/.settings
+/JCudaSamples/.classpath
+/JCudaSamples/.project
+/JCudaSamples/target
