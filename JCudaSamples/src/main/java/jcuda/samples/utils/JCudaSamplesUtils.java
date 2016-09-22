@@ -5,13 +5,21 @@
  */
 package jcuda.samples.utils;
 
+import static jcuda.driver.CUdevice_attribute.CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR;
+import static jcuda.driver.CUdevice_attribute.CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR;
+import static jcuda.driver.JCudaDriver.cuCtxGetDevice;
+import static jcuda.driver.JCudaDriver.cuDeviceGetAttribute;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Random;
 import java.util.logging.Logger;
 
 import jcuda.CudaException;
+import jcuda.driver.CUdevice;
+import jcuda.driver.CUresult;
 
 /**
  * Utility methods that are used in the JCuda samples.<br>
@@ -27,7 +35,7 @@ public class JCudaSamplesUtils
      */
     private static final Logger logger =
         Logger.getLogger(JCudaSamplesUtils.class.getName());
-    
+
     /**
      * Compiles the given CUDA file into a PTX file using NVCC, and returns
      * the name of the resulting PTX file
@@ -41,7 +49,33 @@ public class JCudaSamplesUtils
     {
         return invokeNvcc(cuFileName, "ptx", true);
     }
-    
+
+    /**
+     * Compiles the given CUDA file into a CUBIN file using NVCC, and returns
+     * the name of the resulting CUBIN file. By default, the NVCC will be
+     * invoked with the <code>-dlink</code> parameter, and an 
+     * <code>-arch</code> parameter for the compute capability of the
+     * device of the current context.<br>
+     * <br>
+     * Note that there must be a current context when this function 
+     * is called!
+     * 
+     * @param cuFileName The CUDA file name
+     * @return The PTX file name
+     * @throws CudaException If an error occurs - i.e. when the input file
+     * does not exist, or the NVCC call caused an error.
+     * @throws CudaException If there is no current context
+     */
+    public static String prepareDefaultCubinFile(String cuFileName)
+    {
+        int computeCapability = computeComputeCapability();
+        String nvccArguments[] = new String[] {
+            "-dlink",
+            "-arch=sm_"+computeCapability
+        };
+        return invokeNvcc(cuFileName, "cubin", true, nvccArguments);
+    }
+
     /**
      * Tries to create a PTX or CUBIN file for the given CUDA file. <br>
      * <br>
@@ -74,10 +108,10 @@ public class JCudaSamplesUtils
         {
             throw new IllegalArgumentException(
                 "Target file type must be \"ptx\" or \"cubin\", but is " + 
-                targetFileType);
+                    targetFileType);
         }
         logger.info("Creating " + targetFileType + " file for " + cuFileName);
-        
+
         int dotIndex = cuFileName.lastIndexOf('.');
         if (dotIndex == -1)
         {
@@ -111,7 +145,7 @@ public class JCudaSamplesUtils
         try
         {
             Process process = Runtime.getRuntime().exec(command);
-    
+
             String errorMessage = 
                 new String(toByteArray(process.getErrorStream()));
             String outputMessage =
@@ -169,5 +203,112 @@ public class JCudaSamplesUtils
         }
         return baos.toByteArray();
     }
+
+    /**
+     * Compute the compute capability of the device device of the current
+     * context. The compute capability will be returned as an int value 
+     * <code>major * 10 + minor</code>. For example, the return value
+     * will be <code>52</code> for a device with compute capability 5.2.
+     * 
+     * @return The compute capability of the current device
+     * @throws CudaException If there is no current context
+     */
+    private static int computeComputeCapability()
+    {
+        CUdevice device = new CUdevice();
+        int status = cuCtxGetDevice(device);
+        if (status != CUresult.CUDA_SUCCESS)
+        {
+            throw new CudaException(CUresult.stringFor(status));
+        }
+        return computeComputeCapability(device);
+    }
+
+
+    /**
+     * Compute the compute capability of the given device. The compute 
+     * capability will be returned as an int value 
+     * <code>major * 10 + minor</code>. For example, the return value
+     * will be <code>52</code> for a device with compute capability 5.2.
+     * 
+     * @param device The device
+     * @return The compute capability
+     */
+    private static int computeComputeCapability(CUdevice device)
+    {
+        int majorArray[] = { 0 };
+        int minorArray[] = { 0 };
+        cuDeviceGetAttribute(majorArray,
+            CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, device);
+        cuDeviceGetAttribute(minorArray,
+            CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, device);
+        int major = majorArray[0];
+        int minor = minorArray[0];
+        return major * 10 + minor;
+    }
+
+
+    /**
+     * Creates an array of the specified size, containing float values from
+     * the range [0.0f, 1.0f)
+     * 
+     * @param n The size of the array
+     * @return The array of random values
+     */
+    public static float[] createRandomFloatData(int n)
+    {
+        Random random = new Random(0);
+        float a[] = new float[n];
+        for (int i = 0; i < n; i++)
+        {
+            a[i] = random.nextFloat();
+        }
+        return a;
+    }
+
+    /**
+     * Compares the given result against a reference, and returns whether the
+     * error norm is below a small epsilon threshold
+     * 
+     * @param result The result
+     * @param reference The reference
+     * @return Whether the arrays are equal based on the error norm
+     * @throws NullPointerException If any argument is <code>null</code>
+     * @throws IllegalArgumentException If the arrays have different lengths
+     */
+    public static boolean equalByNorm(float result[], float reference[])
+    {
+        if (result == null)
+        {
+            throw new NullPointerException("The result is null");
+        }
+        if (reference == null)
+        {
+            throw new NullPointerException("The reference is null");
+        }
+        if (result.length != reference.length)
+        {
+            throw new IllegalArgumentException(
+                "The result and reference array have different lengths: " + 
+                    result.length + " and " + reference.length);
+        }
+        final float epsilon = 1e-6f;
+        float errorNorm = 0;
+        float refNorm = 0;
+        for (int i = 0; i < result.length; ++i)
+        {
+            float diff = reference[i] - result[i];
+            errorNorm += diff * diff;
+            refNorm += reference[i] * result[i];
+        }
+        errorNorm = (float) Math.sqrt(errorNorm);
+        refNorm = (float) Math.sqrt(refNorm);
+        if (Math.abs(refNorm) < epsilon)
+        {
+            return false;
+        }
+        return (errorNorm / refNorm < epsilon);
+    }
+
 
 }
