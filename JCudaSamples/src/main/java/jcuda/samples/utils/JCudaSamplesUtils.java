@@ -14,6 +14,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Locale;
 import java.util.Random;
 import java.util.logging.Logger;
 
@@ -309,6 +310,30 @@ public class JCudaSamplesUtils
         }
         return (errorNorm / refNorm < epsilon);
     }
+    
+    
+    /**
+     * Creates a string representation of the given array as a matrix with 
+     * with given number of columns.
+     * 
+     * @param a The array
+     * @param columns The number of columns
+     * @return The string representation
+     */
+    public static String toString2D(float[] a, int columns)
+    {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < a.length; i++)
+        {
+            if ((i > 0) && (i % columns == 0))
+            {
+                sb.append("\n");
+            }
+            sb.append(String.format(Locale.ENGLISH, "%7.4f ", a[i]));
+        }
+        return sb.toString();
+    }
+    
 
 
 }
