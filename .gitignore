@@ -4,3 +4,5 @@ JCudaVec/target/
 /JCudaSamples/.classpath
 /JCudaSamples/.project
 /JCudaSamples/target
+/JCudaSamples/src/main/resources/kernels/*.cubin
+/JCudaSamples/src/main/resources/kernels/*.ptx
