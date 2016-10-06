@@ -39,22 +39,22 @@ class SimpleInteraction
     /**
      * The rotation about the X-axis, in degrees
      */
-    private float rotationX = 40;
+    private float rotationDegX = 40;
 
     /**
      * The rotation about the Y-axis, in degrees
      */
-    private float rotationY = 30;
+    private float rotationDegY = 30;
 
     /**
      * The current projection matrix
      */
-    float projectionMatrix[] = new float[16];
+    private float projectionMatrix[] = new float[16];
 
     /**
-     * The current projection matrix
+     * The current modelview matrix
      */
-    float modelviewMatrix[] = new float[16];
+    private float modelviewMatrix[] = new float[16];
     
     /**
      * Inner class encapsulating the MouseMotionListener and
@@ -82,8 +82,8 @@ class SimpleInteraction
             else if ((e.getModifiersEx() & MouseEvent.BUTTON3_DOWN_MASK) == 
                 MouseEvent.BUTTON3_DOWN_MASK)
             {
-                rotationX += dy;
-                rotationY += dx;
+                rotationDegX += dy;
+                rotationDegY += dx;
             }
             previousMousePosition = e.getPoint();
             updateModelviewMatrix();
@@ -137,8 +137,8 @@ class SimpleInteraction
     private void updateModelviewMatrix()
     {
         float m0[] = translation(translationX, translationY, translationZ);
-        float m1[] = rotationX(rotationX);
-        float m2[] = rotationY(rotationY);
+        float m1[] = rotationX(rotationDegX);
+        float m2[] = rotationY(rotationDegY);
         modelviewMatrix = multiply(multiply(m1,m2), m0);
     }
 
@@ -172,6 +172,56 @@ class SimpleInteraction
     float[] getProjectionMatrix()
     {
         return projectionMatrix;
+    }
+    
+    /**
+     * Returns the rotation around the x-axis, in degrees
+     * 
+     * @return The rotation
+     */
+    float getRotationDegX()
+    {
+        return rotationDegX;
+    }
+    
+    /**
+     * Returns the rotation around the y-axis, in degrees
+     * 
+     * @return The rotation
+     */
+    float getRotationDegY()
+    {
+        return rotationDegY;
+    }
+    
+    /**
+     * Returns the translation along the x-axis
+     * 
+     * @return The translation
+     */
+    float getTranslationX()
+    {
+        return translationX;
+    }
+    
+    /**
+     * Returns the translation along the y-axis
+     * 
+     * @return The translation
+     */
+    float getTranslationY()
+    {
+        return translationY;
+    }
+    
+    /**
+     * Returns the translation along the z-axis
+     * 
+     * @return The translation
+     */
+    float getTranslationZ()
+    {
+        return translationZ;
     }
     
     /**
