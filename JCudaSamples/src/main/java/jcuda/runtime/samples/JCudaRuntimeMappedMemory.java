@@ -34,7 +34,7 @@ import jcuda.runtime.cudaDeviceProp;
  * runtime library function (CUBLAS, for example), which then 
  * effectively writes to host memory.
  */
-public class JCudaMappedMemory
+public class JCudaRuntimeMappedMemory
 {
     /**
      * Entry point of this sample
