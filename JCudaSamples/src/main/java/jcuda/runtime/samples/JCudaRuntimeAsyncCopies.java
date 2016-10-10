@@ -313,7 +313,7 @@ public class JCudaRuntimeAsyncCopies
     }
 
     /**
-     * Test a synchronous (blocking) copy of the given data between the 
+     * Test an a synchronous (non-blocking) copy of the given data between the 
      * given memory types
      *  
      * @param targetType The target {@link MemoryType}
