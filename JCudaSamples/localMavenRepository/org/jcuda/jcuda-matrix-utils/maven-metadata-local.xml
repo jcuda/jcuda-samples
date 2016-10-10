@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>org.jcuda</groupId>
+  <artifactId>jcuda-matrix-utils</artifactId>
+  <versioning>
+    <versions>
+      <version>0.0.1-SNAPSHOT</version>
+    </versions>
+    <lastUpdated>20161010175417</lastUpdated>
+  </versioning>
+</metadata>
