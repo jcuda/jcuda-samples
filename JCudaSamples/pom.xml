@@ -32,6 +32,13 @@
         </developer>
     </developers>
 
+    <repositories>
+        <repository>
+            <id>localMocalMepository</id>
+            <url>file://${basedir}/localMavenRepository</url>
+        </repository>
+    </repositories>
+
     <dependencies>
         <dependency>
             <groupId>org.jcuda</groupId>
@@ -77,6 +84,11 @@
             <groupId>org.jcuda</groupId>
             <artifactId>jcuda-vec</artifactId>
             <version>0.0.2-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>de.javagl</groupId>
+            <artifactId>matrixmarketreader</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.github.wendykierp</groupId>

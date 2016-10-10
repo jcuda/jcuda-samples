@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>de.javagl</groupId>
+  <artifactId>matrixmarketreader</artifactId>
+  <versioning>
+    <versions>
+      <version>0.0.1-SNAPSHOT</version>
+    </versions>
+    <lastUpdated>20161010163950</lastUpdated>
+  </versioning>
+</metadata>
