@@ -104,7 +104,7 @@ public class JNvgraphSSSP
         nvgraphAllocateEdgeData(
             handle, graph, edge_numsets, Pointer.to(new int[] { edge_dimT }));
         nvgraphSetEdgeData(
-            handle, graph, Pointer.to(weights_h), 0, NVGRAPH_CSC_32);
+            handle, graph, Pointer.to(weights_h), 0);
 
         // Solve
         int source_vert = 0;
@@ -117,14 +117,14 @@ public class JNvgraphSSSP
         // Get and print result
 
         nvgraphGetVertexData(
-            handle, graph, Pointer.to(sssp_1_h), 0, NVGRAPH_CSC_32);
+            handle, graph, Pointer.to(sssp_1_h), 0);
         // expect sssp_1_h = 
         //     (0.000000 0.500000 0.500000 1.333333 0.833333 1.333333)^T
         System.out.printf("sssp_1_h: "+Arrays.toString(sssp_1_h)+"\n");
 
 
         nvgraphGetVertexData(
-            handle, graph, Pointer.to(sssp_2_h), 1, NVGRAPH_CSC_32);
+            handle, graph, Pointer.to(sssp_2_h), 1);
         // expect sssp_2_h = 
         //     (FLT_MAX FLT_MAX FLT_MAX 1.000000 1.500000 0.000000 )^T
         System.out.printf("sssp_2_h: "+Arrays.toString(sssp_2_h)+"\n");

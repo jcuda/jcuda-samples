@@ -171,16 +171,14 @@ class JNvgraphPageRank
         nvgraphAllocateEdgeData(handle, graph, edge_numsets,
             Pointer.to(edge_dimT));
         for (i = 0; i < 2; ++i)
-            nvgraphSetVertexData(handle, graph, vertex_dim[i], i,
-                NVGRAPH_CSC_32);
-        nvgraphSetEdgeData(handle, graph, Pointer.to(weights_h), 0,
-            NVGRAPH_CSC_32);
+            nvgraphSetVertexData(handle, graph, vertex_dim[i], i);
+        nvgraphSetEdgeData(handle, graph, Pointer.to(weights_h), 0);
 
         // First run with default values
         nvgraphPagerank(handle, graph, 0, alpha1_p, 0, 0, 1, 0.0f, 0);
 
         // Get and print result
-        nvgraphGetVertexData(handle, graph, vertex_dim[1], 1, NVGRAPH_CSC_32);
+        nvgraphGetVertexData(handle, graph, vertex_dim[1], 1);
         System.out.printf("pr_1, alpha = 0.85\n");
         for (i = 0; i < n; i++)
             System.out.printf("%f\n", pr_1[i]);
@@ -190,11 +188,11 @@ class JNvgraphPageRank
         for (i = 0; i < n; i++)
             pr_2[i] = pr_1[i];
 
-        nvgraphSetVertexData(handle, graph, vertex_dim[2], 2, NVGRAPH_CSC_32);
+        nvgraphSetVertexData(handle, graph, vertex_dim[2], 2);
         nvgraphPagerank(handle, graph, 0, alpha2_p, 0, 1, 2, 0.0f, 0);
 
         // Get and print result
-        nvgraphGetVertexData(handle, graph, vertex_dim[2], 2, NVGRAPH_CSC_32);
+        nvgraphGetVertexData(handle, graph, vertex_dim[2], 2);
         System.out.printf("pr_2, alpha = 0.90\n");
         for (i = 0; i < n; i++)
             System.out.printf("%f\n", pr_2[i]);
