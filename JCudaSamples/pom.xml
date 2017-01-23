@@ -8,7 +8,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <jcuda.jcudaVersion>0.8.0RC</jcuda.jcudaVersion>
+        <jcuda.jcudaVersion>0.8.0</jcuda.jcudaVersion>
     </properties>
 
     <name>JCudaSamples</name>
