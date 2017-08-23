@@ -100,7 +100,7 @@ public class VecDoubleSample
         cuMemFree(deviceX);
         cuMemFree(deviceY);
         cuMemFree(deviceResult);
-        VecFloat.shutdown();
+        VecDouble.shutdown();
     }
 
 }
