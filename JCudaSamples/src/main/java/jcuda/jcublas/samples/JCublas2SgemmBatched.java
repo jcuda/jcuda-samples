@@ -1,16 +1,7 @@
 /*
- * JCublas - Java bindings for JCublas, the NVIDIA CUDA BLAS library,
- * to be used with JCuda <br />
- * 
- * http://www.jcuda.org
+ * JCuda - Java bindings for NVIDIA CUDA
  *
- * DISCLAIMER: THIS SOFTWARE IS PROVIDED WITHOUT WARRANTY OF ANY KIND
- * If you find any bugs or errors, contact me at http://www.jcuda.org
- *
- * LICENSE: THIS SOFTWARE IS FREE FOR NON-COMMERCIAL USE ONLY
- * For non-commercial applications, you may use this software without
- * any restrictions. If you wish to use it for commercial purposes,
- * contact me at http://www.jcuda.org
+ * Copyright 2008-2016 Marco Hutter - http://www.jcuda.org
  */
 package jcuda.jcublas.samples;
 
