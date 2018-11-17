@@ -8,7 +8,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <jcuda.jcudaVersion>0.8.0</jcuda.jcudaVersion>
+        <jcuda.jcudaVersion>10.0.0</jcuda.jcudaVersion>
     </properties>
 
     <name>JCudaSamples</name>
@@ -83,7 +83,7 @@
         <dependency>
             <groupId>org.jcuda</groupId>
             <artifactId>jcuda-vec</artifactId>
-            <version>0.0.2-SNAPSHOT</version>
+            <version>0.0.2</version>
         </dependency>
         <dependency>
             <groupId>de.javagl</groupId>
