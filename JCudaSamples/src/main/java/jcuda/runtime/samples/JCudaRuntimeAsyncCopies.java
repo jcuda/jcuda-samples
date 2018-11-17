@@ -1,9 +1,10 @@
-package jcuda.runtime.samples;
 /*
  * JCuda - Java bindings for NVIDIA CUDA
  *
  * Copyright 2008-2016 Marco Hutter - http://www.jcuda.org
  */
+package jcuda.runtime.samples;
+
 import static jcuda.runtime.JCuda.cudaFree;
 import static jcuda.runtime.JCuda.cudaFreeHost;
 import static jcuda.runtime.JCuda.cudaHostAlloc;

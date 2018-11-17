@@ -1,10 +1,11 @@
-package jcuda.driver.samples;
 /*
  * JCuda - Java bindings for NVIDIA CUDA driver and runtime API
  * http://www.jcuda.org
  *
  * Copyright 2011-2018 Marco Hutter - http://www.jcuda.org
  */
+package jcuda.driver.samples;
+
 import static jcuda.driver.JCudaDriver.cuCtxCreate;
 import static jcuda.driver.JCudaDriver.cuCtxDestroy;
 import static jcuda.driver.JCudaDriver.cuCtxSynchronize;
