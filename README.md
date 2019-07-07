@@ -2,10 +2,6 @@
 
 This repository contains samples for the JCuda libraries.
 
-**Note:** Most of the samples are still (only) available at 
-[http://www.jcuda.org/samples/samples.html](http://www.jcuda.org/samples/samples.html).
-The existing samples will undergo a review and be added here.
-
 **Note:** Some of the samples require third-party libraries, JCuda
 libraries that are not part of the [`jcuda-main`](https://github.com/jcuda/jcuda-main) 
 package (for example, [`JCudaVec`](https://github.com/jcuda/jcuda-vec) or 
