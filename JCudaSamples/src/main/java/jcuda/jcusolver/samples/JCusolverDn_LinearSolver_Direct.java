@@ -29,7 +29,7 @@ import static jcuda.runtime.JCuda.*;
 import static jcuda.runtime.cudaMemcpyKind.*;
 
 /**
- * This is a sample showing how to use JCusolverSp.<br>
+ * This is a sample showing how to use JCusolverDn.<br>
  * <br>
  * <br>
  * This is a direct 1:1 port of the NVIDIA sample "JCusolverDn_LinearSolver",
