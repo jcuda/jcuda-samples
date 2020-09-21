@@ -1,14 +1,16 @@
 /*
  * JCuda - Java bindings for NVIDIA CUDA
  *
- * Copyright 2008-2016 Marco Hutter - http://www.jcuda.org
+ * Copyright 2008-2020 Marco Hutter - http://www.jcuda.org
  */
 package jcuda.jcudnn.samples;
 
 import static jcuda.runtime.JCuda.cudaDeviceReset;
 import static jcuda.runtime.JCuda.cudaDeviceSynchronize;
+import static jcuda.runtime.JCuda.cudaMalloc;
 import static jcuda.runtime.JCuda.cudaMemcpy;
 import static jcuda.runtime.cudaMemcpyKind.cudaMemcpyDeviceToHost;
+import static jcuda.runtime.cudaMemcpyKind.cudaMemcpyHostToDevice;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -23,6 +25,7 @@ import java.nio.FloatBuffer;
 import jcuda.CudaException;
 import jcuda.Pointer;
 import jcuda.Sizeof;
+import jcuda.jcudnn.cudnnDataType;
 
 /**
  * Utility methods for the JCudnnMnist sample. These are mainly file IO 
@@ -31,8 +34,25 @@ import jcuda.Sizeof;
  */
 class JCudnnMnistUtils
 {
-
-    static float[] readBinaryFileAsFloatsUnchecked(String fileName)
+    static Pointer readBinaryFileAsDeviceDataUnchecked(
+        String fileName, int dataType)
+    {
+        if (dataType == cudnnDataType.CUDNN_DATA_FLOAT)
+        {
+            float data[] = readBinaryFileAsFloatsUnchecked(fileName);
+            return createDevicePointer(data);
+        }
+        if (dataType == cudnnDataType.CUDNN_DATA_DOUBLE)
+        {
+            float data[] = readBinaryFileAsFloatsUnchecked(fileName);
+            double doubleData[] = toDouble(data);
+            return createDevicePointer(doubleData);
+        }
+        throw new IllegalArgumentException(
+            "Invalid data type: " + cudnnDataType.stringFor(dataType));
+    }
+    
+    private static float[] readBinaryFileAsFloatsUnchecked(String fileName)
     {
         try
         {
@@ -58,6 +78,15 @@ class JCudnnMnistUtils
         return result;
     }
     
+    private static double[] toDouble(float array[])
+    {
+        double result[] = new double[array.length];
+        for (int i = 0; i < array.length; i++)
+        {
+            result[i] = array[i];
+        }
+        return result;
+    }
 
     private static byte[] readFully(InputStream inputStream) throws IOException
     {
@@ -76,11 +105,27 @@ class JCudnnMnistUtils
         return data;
     }
 
-    static float[] readImageDataUnchecked(String fileName)
+    static Pointer readImageDataUnchecked(String fileName, int dataType)
+    {
+        if (dataType == cudnnDataType.CUDNN_DATA_FLOAT)
+        {
+            float data[] = readImageDataAsFloatsUnchecked(fileName);
+            return Pointer.to(data);
+        }
+        if (dataType == cudnnDataType.CUDNN_DATA_DOUBLE)
+        {
+            double data[] = readImageDataAsDoublesUnchecked(fileName);
+            return Pointer.to(data);
+        }
+        throw new IllegalArgumentException(
+            "Invalid data type: " + cudnnDataType.stringFor(dataType));
+    }
+
+    private static double[] readImageDataAsDoublesUnchecked(String fileName)
     {
         try
         {
-            return readImageData(fileName);
+            return readImageDataAsDoubles(fileName);
         }
         catch (IOException e)
         {
@@ -89,7 +134,32 @@ class JCudnnMnistUtils
         }
     }
 
-    private static float[] readImageData(String fileName) throws IOException
+    private static double[] readImageDataAsDoubles(String fileName) throws IOException
+    {
+        InputStream is = new FileInputStream(new File(fileName));
+        byte data[] = readBinaryPortableGraymap8bitData(is);
+        double imageData[] = new double[data.length];
+        for (int i = 0; i < data.length; i++)
+        {
+            imageData[i] = (((int) data[i]) & 0xff) / 255.0;
+        }
+        return imageData;
+    }
+    
+    private static float[] readImageDataAsFloatsUnchecked(String fileName)
+    {
+        try
+        {
+            return readImageDataAsFloats(fileName);
+        }
+        catch (IOException e)
+        {
+            cudaDeviceReset();
+            throw new CudaException("Could not read input file", e);
+        }
+    }
+
+    private static float[] readImageDataAsFloats(String fileName) throws IOException
     {
         InputStream is = new FileInputStream(new File(fileName));
         byte data[] = readBinaryPortableGraymap8bitData(is);
@@ -176,8 +246,24 @@ class JCudnnMnistUtils
         }
     }
 
+    static void printDeviceVector(int size, Pointer d, int dataType)
+    {
+        if (dataType == cudnnDataType.CUDNN_DATA_FLOAT)
+        {
+            printFloatDeviceVector(size, d);
+        }
+        else if (dataType == cudnnDataType.CUDNN_DATA_DOUBLE)
+        {
+            printDoubleDeviceVector(size, d);
+        }
+        else
+        {
+            throw new IllegalArgumentException(
+                "Invalid data type: " + cudnnDataType.stringFor(dataType));
+        }
+    }
     
-    static void printDeviceVector(int size, Pointer d)
+    private static void printFloatDeviceVector(int size, Pointer d)
     {
         float h[] = new float[size];
         cudaDeviceSynchronize();
@@ -188,6 +274,80 @@ class JCudnnMnistUtils
             System.out.print(h[i] + " ");
         }
         System.out.println();
+    }
+    private static void printDoubleDeviceVector(int size, Pointer d)
+    {
+        double h[] = new double[size];
+        cudaDeviceSynchronize();
+        cudaMemcpy(Pointer.to(h), d, size * Sizeof.DOUBLE,
+            cudaMemcpyDeviceToHost);
+        for (int i = 0; i < size; i++)
+        {
+            System.out.print(h[i] + " ");
+        }
+        System.out.println();
+    }
+
+    static int computeIndexOfMax(Pointer d, int length, int dataType)
+    {
+        if (dataType == cudnnDataType.CUDNN_DATA_FLOAT)
+        {
+            return computeIndexOfMaxFloat(d, length);
+        }
+        if (dataType == cudnnDataType.CUDNN_DATA_DOUBLE)
+        {
+            return computeIndexOfMaxDouble(d, length);
+        }
+        throw new IllegalArgumentException(
+            "Invalid data type: " + cudnnDataType.stringFor(dataType));
+    }
+
+    private static int computeIndexOfMaxFloat(Pointer d, int length)
+    {
+        float result[] = new float[length];
+        cudaMemcpy(Pointer.to(result), d, 
+            length * Sizeof.FLOAT,
+            cudaMemcpyDeviceToHost);
+        int id = 0;
+        for (int i = 1; i < length; i++)
+        {
+            if (result[id] < result[i])
+                id = i;
+        }
+        return id;
+    }
+    
+    private static int computeIndexOfMaxDouble(Pointer d, int length)
+    {
+        double result[] = new double[length];
+        cudaMemcpy(Pointer.to(result), d, 
+            length * Sizeof.DOUBLE,
+            cudaMemcpyDeviceToHost);
+        int id = 0;
+        for (int i = 1; i < length; i++)
+        {
+            if (result[id] < result[i])
+                id = i;
+        }
+        return id;
+    }
+    
+    private static Pointer createDevicePointer(float data[])
+    {
+        int size = data.length * Sizeof.FLOAT;
+        Pointer deviceData = new Pointer();
+        cudaMalloc(deviceData, size);
+        cudaMemcpy(deviceData, Pointer.to(data), size, cudaMemcpyHostToDevice);
+        return deviceData;
+    }
+    
+    private static Pointer createDevicePointer(double data[])
+    {
+        int size = data.length * Sizeof.DOUBLE;
+        Pointer deviceData = new Pointer();
+        cudaMalloc(deviceData, size);
+        cudaMemcpy(deviceData, Pointer.to(data), size, cudaMemcpyHostToDevice);
+        return deviceData;
     }
 
 }

@@ -74,6 +74,9 @@ import jcuda.runtime.cudaEvent_t;
 
 /**
  * A 1:1 port of the RNN example of cuDNN. 
+ * 
+ * (Note: This has not been updated for cuDNN 8.0, but even the official
+ * example uses several deprecated functions)
  */
 public class JCudnnRnnExample
 {

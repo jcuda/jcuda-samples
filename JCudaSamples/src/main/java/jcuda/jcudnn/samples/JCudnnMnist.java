@@ -1,12 +1,13 @@
 /*
  * JCuda - Java bindings for NVIDIA CUDA
  *
- * Copyright 2008-2016 Marco Hutter - http://www.jcuda.org
+ * Copyright 2008-2020 Marco Hutter - http://www.jcuda.org
  */
 package jcuda.jcudnn.samples;
 
 import static jcuda.jcublas.JCublas2.cublasCreate;
 import static jcuda.jcublas.JCublas2.cublasDestroy;
+import static jcuda.jcublas.JCublas2.cublasDgemv;
 import static jcuda.jcublas.JCublas2.cublasSgemv;
 import static jcuda.jcublas.cublasOperation.CUBLAS_OP_T;
 import static jcuda.jcudnn.JCudnn.CUDNN_VERSION;
@@ -28,7 +29,7 @@ import static jcuda.jcudnn.JCudnn.cudnnDestroyLRNDescriptor;
 import static jcuda.jcudnn.JCudnn.cudnnDestroyPoolingDescriptor;
 import static jcuda.jcudnn.JCudnn.cudnnDestroyTensorDescriptor;
 import static jcuda.jcudnn.JCudnn.cudnnFindConvolutionForwardAlgorithm;
-import static jcuda.jcudnn.JCudnn.cudnnGetConvolutionForwardAlgorithm;
+import static jcuda.jcudnn.JCudnn.cudnnGetConvolutionForwardAlgorithm_v7;
 import static jcuda.jcudnn.JCudnn.cudnnGetConvolutionForwardWorkspaceSize;
 import static jcuda.jcudnn.JCudnn.cudnnGetConvolutionNdForwardOutputDim;
 import static jcuda.jcudnn.JCudnn.cudnnGetErrorString;
@@ -42,10 +43,12 @@ import static jcuda.jcudnn.JCudnn.cudnnSetFilterNdDescriptor;
 import static jcuda.jcudnn.JCudnn.cudnnSetLRNDescriptor;
 import static jcuda.jcudnn.JCudnn.cudnnSetPoolingNdDescriptor;
 import static jcuda.jcudnn.JCudnn.cudnnSetTensor4dDescriptor;
+import static jcuda.jcudnn.JCudnn.cudnnSetTensor4dDescriptorEx;
+import static jcuda.jcudnn.JCudnn.cudnnSetTensorNdDescriptor;
 import static jcuda.jcudnn.JCudnn.cudnnSoftmaxForward;
 import static jcuda.jcudnn.cudnnActivationMode.CUDNN_ACTIVATION_RELU;
+import static jcuda.jcudnn.cudnnConvolutionFwdAlgo.CUDNN_CONVOLUTION_FWD_ALGO_COUNT;
 import static jcuda.jcudnn.cudnnConvolutionFwdAlgo.CUDNN_CONVOLUTION_FWD_ALGO_FFT;
-import static jcuda.jcudnn.cudnnConvolutionFwdPreference.CUDNN_CONVOLUTION_FWD_PREFER_FASTEST;
 import static jcuda.jcudnn.cudnnConvolutionMode.CUDNN_CROSS_CORRELATION;
 import static jcuda.jcudnn.cudnnDataType.CUDNN_DATA_FLOAT;
 import static jcuda.jcudnn.cudnnLRNMode.CUDNN_LRN_CROSS_CHANNEL_DIM1;
@@ -58,7 +61,6 @@ import static jcuda.runtime.JCuda.cudaFree;
 import static jcuda.runtime.JCuda.cudaMalloc;
 import static jcuda.runtime.JCuda.cudaMemcpy;
 import static jcuda.runtime.cudaMemcpyKind.cudaMemcpyDeviceToDevice;
-import static jcuda.runtime.cudaMemcpyKind.cudaMemcpyDeviceToHost;
 import static jcuda.runtime.cudaMemcpyKind.cudaMemcpyHostToDevice;
 
 import jcuda.Pointer;
@@ -68,8 +70,8 @@ import jcuda.jcublas.cublasHandle;
 import jcuda.jcudnn.JCudnn;
 import jcuda.jcudnn.cudnnActivationDescriptor;
 import jcuda.jcudnn.cudnnConvolutionDescriptor;
-import jcuda.jcudnn.cudnnConvolutionFwdAlgo;
 import jcuda.jcudnn.cudnnConvolutionFwdAlgoPerf;
+import jcuda.jcudnn.cudnnDataType;
 import jcuda.jcudnn.cudnnFilterDescriptor;
 import jcuda.jcudnn.cudnnHandle;
 import jcuda.jcudnn.cudnnLRNDescriptor;
@@ -120,7 +122,8 @@ public class JCudnnMnist
             version, CUDNN_VERSION);
 
         System.out.println("Creating network and layers...");
-        Network mnist = new Network();
+        int dataType = cudnnDataType.CUDNN_DATA_FLOAT;
+        Network mnist = new Network(dataType);
         
         System.out.println("Classifying...");
         int i1 = mnist.classifyExample(dataDirectory + first_image);
@@ -152,6 +155,14 @@ public class JCudnnMnist
         int c;
         int h;
         int w;
+        
+        TensorLayout(int n, int c, int h, int w)
+        {
+            this.n = n;
+            this.c = c;
+            this.h = h;
+            this.w = w;
+        }
     }
     
     private static class Layer
@@ -163,7 +174,8 @@ public class JCudnnMnist
         Pointer bias_d;
 
         Layer(int inputs, int outputs, int kernelDim, 
-            String weightsFileName, String biasFileName)
+            String weightsFileName, String biasFileName,
+            int dataType)
         {
             this.inputs = inputs;
             this.outputs = outputs;
@@ -172,13 +184,11 @@ public class JCudnnMnist
             String weightsPath = dataDirectory + weightsFileName;
             String biasPath = dataDirectory + biasFileName;
 
-            float weights[] = 
-                JCudnnMnistUtils.readBinaryFileAsFloatsUnchecked(weightsPath);
-            data_d = createDevicePointer(weights);
+            data_d = JCudnnMnistUtils.readBinaryFileAsDeviceDataUnchecked(
+                weightsPath, dataType);
 
-            float bias[] = 
-                JCudnnMnistUtils.readBinaryFileAsFloatsUnchecked(biasPath);
-            bias_d = createDevicePointer(bias);
+            bias_d = JCudnnMnistUtils.readBinaryFileAsDeviceDataUnchecked(
+                biasPath, dataType);
         }
 
         void destroy()
@@ -188,9 +198,52 @@ public class JCudnnMnist
         }
     };
     
+    // Demonstrate different ways of setting tensor descriptor.
+    // This enum covers the #defines from the original sample.
+    private enum TensorDescriptorType
+    {
+        NONE,
+        SIMPLE_TENSOR_DESCRIPTOR,
+        ND_TENSOR_DESCRIPTOR
+    }
+    private static final TensorDescriptorType tensorDescriptorType = 
+        TensorDescriptorType.ND_TENSOR_DESCRIPTOR;
+
+
+    private static void setTensorDesc(cudnnTensorDescriptor tensorDesc, 
+        int tensorFormat, int dataType, TensorLayout t)
+    {
+        setTensorDesc(tensorDesc, tensorFormat, dataType, t.n, t.c, t.h, t.w);
+    }
+    
+    private static void setTensorDesc(cudnnTensorDescriptor tensorDesc, 
+        int tensorFormat, int dataType, int n, int c, int h, int w)
+    {
+        if (tensorDescriptorType == TensorDescriptorType.SIMPLE_TENSOR_DESCRIPTOR)
+        {
+            cudnnSetTensor4dDescriptor(tensorDesc,
+                CUDNN_TENSOR_NCHW, dataType, n, c, h, w);
+        }
+        else if (tensorDescriptorType == TensorDescriptorType.ND_TENSOR_DESCRIPTOR)
+        {
+            int dimA[] = {n,c,h,w};
+            int strideA[] = {c*h*w, h*w, w, 1};
+            cudnnSetTensorNdDescriptor(tensorDesc, 
+                dataType, 4, dimA, strideA);
+        }
+        else
+        {
+            cudnnSetTensor4dDescriptorEx(tensorDesc,
+                dataType, n, c, h, w, c*h*w, h*w, w, 1);
+        }
+    }
+    
+    
     private static class Network
     {
-        private int convAlgorithm;
+        private int convAlgorithm; // cudnnConvolutionFwdAlgo_t
+        private int dataType; // cudnnDataType_t
+        private int tensorFormat; // cudnnTensorFormat_t
         private cudnnHandle cudnnHandle;
         private cudnnTensorDescriptor srcTensorDesc;
         private cudnnTensorDescriptor dstTensorDesc;
@@ -206,16 +259,40 @@ public class JCudnnMnist
         private final Layer conv2;
         private final Layer ip1;
         private final Layer ip2;
+        
+        private int dataTypeSize;
+        private Pointer pointerToOne;
+        private Pointer pointerToZero;
 
-        Network()
+        Network(int valueType)
         {
             convAlgorithm = -1;
+            dataType = valueType;
+            if (dataType == cudnnDataType.CUDNN_DATA_FLOAT)
+            {
+                dataTypeSize = Sizeof.FLOAT;
+                pointerToOne = pointerTo(1.0f);
+                pointerToZero = pointerTo(0.0f);
+            }
+            else if (dataType == cudnnDataType.CUDNN_DATA_DOUBLE)
+            {
+                dataTypeSize = Sizeof.DOUBLE;
+                pointerToOne = pointerTo(1.0);
+                pointerToZero = pointerTo(0.0);
+            }
+            else
+            {
+                throw new IllegalArgumentException(
+                    "Invalid data type: " + cudnnDataType.stringFor(valueType));
+            }
+            
+            tensorFormat = CUDNN_TENSOR_NCHW;
             createHandles();
             
-            conv1 = new Layer(1, 20, 5, conv1_bin, conv1_bias_bin);
-            conv2 = new Layer(20, 50, 5, conv2_bin, conv2_bias_bin);
-            ip1 = new Layer(800, 500, 1, ip1_bin, ip1_bias_bin);
-            ip2 = new Layer(500, 10, 1, ip2_bin, ip2_bias_bin);
+            conv1 = new Layer(1, 20, 5, conv1_bin, conv1_bias_bin, dataType);
+            conv2 = new Layer(20, 50, 5, conv2_bin, conv2_bias_bin, dataType);
+            ip1 = new Layer(800, 500, 1, ip1_bin, ip1_bias_bin, dataType);
+            ip2 = new Layer(500, 10, 1, ip2_bin, ip2_bias_bin, dataType);
         }
 
         void createHandles()
@@ -273,11 +350,10 @@ public class JCudnnMnist
         void addBias(cudnnTensorDescriptor dstTensorDesc, 
             Layer layer, int c, Pointer data)
         {
-            cudnnSetTensor4dDescriptor(biasTensorDesc, 
-                CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-                1, c, 1, 1);
-            Pointer alpha = pointerTo(1.0f);
-            Pointer beta = pointerTo(1.0f);
+            setTensorDesc(biasTensorDesc, tensorFormat, 
+                dataType, new TensorLayout(1, c, 1, 1));
+            Pointer alpha = pointerToOne;
+            Pointer beta = pointerToOne;
             cudnnAddTensor(cudnnHandle, alpha,
                 biasTensorDesc, layer.bias_d, beta, dstTensorDesc, data);
         }
@@ -292,18 +368,27 @@ public class JCudnnMnist
             }
             int dim_x = t.c * t.h * t.w;
             int dim_y = ip.outputs;
-            resize(dim_y, dstData);
+            resize(dim_y, dataTypeSize, dstData);
 
-            Pointer alpha = pointerTo(1.0f);
-            Pointer beta = pointerTo(1.0f);
+            Pointer alpha = pointerToOne;
+            Pointer beta = pointerToOne;
 
             // place bias into dstData
-            cudaMemcpy(dstData, ip.bias_d, dim_y * Sizeof.FLOAT,
+            cudaMemcpy(dstData, ip.bias_d, dim_y * dataTypeSize,
                 cudaMemcpyDeviceToDevice);
 
-            cublasSgemv(cublasHandle, CUBLAS_OP_T, 
-                dim_x, dim_y, alpha, ip.data_d, 
-                dim_x, srcData, 1, beta, dstData, 1);
+            if (dataType == CUDNN_DATA_FLOAT) 
+            {
+                cublasSgemv(cublasHandle, CUBLAS_OP_T, 
+                    dim_x, dim_y, alpha, ip.data_d, 
+                    dim_x, srcData, 1, beta, dstData, 1);
+            }
+            else
+            {
+                cublasDgemv(cublasHandle, CUBLAS_OP_T, 
+                    dim_x, dim_y, alpha, ip.data_d, 
+                    dim_x, srcData, 1, beta, dstData, 1);
+            }
 
             t.h = 1;
             t.w = 1;
@@ -315,9 +400,8 @@ public class JCudnnMnist
         {
             int algo = 0; // cudnnConvolutionFwdAlgo_t
 
-            cudnnSetTensor4dDescriptor(srcTensorDesc, 
-                CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-                t.n, t.c, t.h, t.w);
+            setTensorDesc(srcTensorDesc, 
+                tensorFormat, dataType, t);
 
             int tensorDims = 4;
             int tensorOuputDimA[] = { t.n, t.c, t.h, t.w };
@@ -325,15 +409,17 @@ public class JCudnnMnist
                 conv.outputs, conv.inputs, 
                 conv.kernel_dim, conv.kernel_dim };
             
+            // TODO The CUDNN_TENSOR_NCHW was used in the sample. It should
+            // probably be 'tensorFormat', but it does not make a difference:
             cudnnSetFilterNdDescriptor(filterDesc, 
-                CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, tensorDims, filterDimA);
+                dataType, CUDNN_TENSOR_NCHW, tensorDims, filterDimA);
 
             int convDims = 2;
             int padA[] = { 0, 0 };
             int filterStrideA[] = { 1, 1 };
             int upscaleA[] = { 1, 1 };
             cudnnSetConvolutionNdDescriptor(convDesc, convDims, padA,
-                filterStrideA, upscaleA, CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT);
+                filterStrideA, upscaleA, CUDNN_CROSS_CORRELATION, dataType);
 
             // find dimension of convolution output
             cudnnGetConvolutionNdForwardOutputDim(convDesc, 
@@ -344,69 +430,71 @@ public class JCudnnMnist
             t.h = tensorOuputDimA[2];
             t.w = tensorOuputDimA[3];
 
-            cudnnSetTensor4dDescriptor(dstTensorDesc, 
-                CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-                t.n, t.c, t.h, t.w);
+            setTensorDesc(dstTensorDesc, 
+                tensorFormat, dataType, t);
 
             if (convAlgorithm < 0)
             {
-                int algoArray[] = { -1 };
-                
-                // Choose the best according to the preference
-                System.out.println(
-                    "Testing cudnnGetConvolutionForwardAlgorithm ...");
-                cudnnGetConvolutionForwardAlgorithm(cudnnHandle, srcTensorDesc,
-                    filterDesc, convDesc, dstTensorDesc,
-                    CUDNN_CONVOLUTION_FWD_PREFER_FASTEST, 0, algoArray);
-                algo = algoArray[0];
+                int requestedAlgoCount = CUDNN_CONVOLUTION_FWD_ALGO_COUNT; 
+                int returnedAlgoCount = -1;
+                int returnedAlgoCountArray[] = { returnedAlgoCount }; 
+                cudnnConvolutionFwdAlgoPerf results[] = 
+                    new cudnnConvolutionFwdAlgoPerf[2 * CUDNN_CONVOLUTION_FWD_ALGO_COUNT];
 
-                System.out.println("Fastest algorithm is Algo " + algo);
-                convAlgorithm = algo;
+                // Choose the best according to the preference
+                System.out.println("Testing cudnnGetConvolutionForwardAlgorithm_v7 ...");
+                cudnnGetConvolutionForwardAlgorithm_v7(cudnnHandle,
+                    srcTensorDesc, filterDesc, convDesc,
+                    dstTensorDesc, requestedAlgoCount,
+                    returnedAlgoCountArray,
+                    results);
+                returnedAlgoCount = returnedAlgoCountArray[0];    
+                for(int algoIndex = 0; algoIndex < returnedAlgoCount; ++algoIndex)
+                {
+                    String errorString = cudnnGetErrorString(results[algoIndex].status);
+                    System.out.printf("^^^^ %s for Algo %d: %f time requiring %d memory\n", 
+                        errorString, results[algoIndex].algo, results[algoIndex].time, 
+                        (long)results[algoIndex].memory);
+                }
 
                 // New way of finding the fastest config
                 // Setup for findFastest call
-                System.out.println(
-                    "Testing cudnnFindConvolutionForwardAlgorithm ...");
-                int requestedAlgoCount = 5;
-                int returnedAlgoCount[] = new int[1];
-                cudnnConvolutionFwdAlgoPerf results[] = 
-                    new cudnnConvolutionFwdAlgoPerf[requestedAlgoCount];
-                cudnnFindConvolutionForwardAlgorithm(cudnnHandle,
-                    srcTensorDesc, filterDesc, convDesc, dstTensorDesc,
-                    requestedAlgoCount, returnedAlgoCount, results);
-                for (int algoIndex = 0; algoIndex < returnedAlgoCount[0]; ++algoIndex)
+                System.out.println("Testing cudnnFindConvolutionForwardAlgorithm ...");
+                cudnnFindConvolutionForwardAlgorithm(cudnnHandle, 
+                    srcTensorDesc, filterDesc, convDesc,
+                    dstTensorDesc, requestedAlgoCount,
+                    returnedAlgoCountArray, results);
+                returnedAlgoCount = returnedAlgoCountArray[0];    
+                for(int algoIndex = 0; algoIndex < returnedAlgoCount; ++algoIndex)
                 {
-                    System.out.printf(
-                        "    %s for Algo %d (%s): %f time requiring %d memory\n",
-                        cudnnGetErrorString(results[algoIndex].status),
-                        results[algoIndex].algo, 
-                        cudnnConvolutionFwdAlgo.stringFor(results[algoIndex].algo),
-                        results[algoIndex].time, results[algoIndex].memory);
+                    String errorString = cudnnGetErrorString(results[algoIndex].status);
+                    System.out.printf("^^^^ %s for Algo %d: %f time requiring %d memory\n", 
+                        errorString, 
+                        results[algoIndex].algo, results[algoIndex].time, 
+                        (long)results[algoIndex].memory);
                 }
-            }
-            else
+                algo = results[0].algo;            
+            } 
+            else 
             {
                 algo = convAlgorithm;
-                if (algo == CUDNN_CONVOLUTION_FWD_ALGO_FFT)
-                {
-                    System.out.println("Using FFT for convolution");
-                }
             }
 
-            resize(t.n * t.c * t.h * t.w, dstData);
-            long sizeInBytesArray[] = { 0 };
+            resize(t.n * t.c * t.h * t.w, dataTypeSize, dstData);
+            long sizeInBytes = 0;
+            long sizeInBytesArray[] = { sizeInBytes };
             Pointer workSpace = new Pointer();
             cudnnGetConvolutionForwardWorkspaceSize(cudnnHandle, 
                 srcTensorDesc, filterDesc, convDesc, dstTensorDesc, 
                 algo, sizeInBytesArray);
-            long sizeInBytes = sizeInBytesArray[0];
+            sizeInBytes = sizeInBytesArray[0];
             if (sizeInBytes != 0)
             {
                 cudaMalloc(workSpace, sizeInBytes);
             }
             
-            Pointer alpha = pointerTo(1.0f);
-            Pointer beta = pointerTo(0.0f);
+            Pointer alpha = pointerToOne;
+            Pointer beta = pointerToZero;
             cudnnConvolutionForward(cudnnHandle, alpha, srcTensorDesc, 
                 srcData, filterDesc, conv.data_d, convDesc, algo, 
                 workSpace, sizeInBytes, beta, dstTensorDesc, dstData);
@@ -428,9 +516,8 @@ public class JCudnnMnist
                 CUDNN_POOLING_MAX, CUDNN_PROPAGATE_NAN, poolDims, windowDimA, 
                 paddingA, strideA);
 
-            cudnnSetTensor4dDescriptor(srcTensorDesc, 
-                CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-                t.n, t.c, t.h, t.w);
+            setTensorDesc(srcTensorDesc, 
+                tensorFormat, dataType, t);
 
             int tensorDims = 4;
             int tensorOuputDimA[] = { t.n, t.c, t.h, t.w };
@@ -442,13 +529,12 @@ public class JCudnnMnist
             t.h = tensorOuputDimA[2];
             t.w = tensorOuputDimA[3];
 
-            cudnnSetTensor4dDescriptor(dstTensorDesc, 
-                CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-                t.n, t.c, t.h, t.w);
+            setTensorDesc(dstTensorDesc, 
+                tensorFormat, dataType, t);
 
-            resize(t.n * t.c * t.h * t.w, dstData);
-            Pointer alpha = pointerTo(1.0f);
-            Pointer beta = pointerTo(0.0f);
+            resize(t.n * t.c * t.h * t.w, dataTypeSize, dstData);
+            Pointer alpha = pointerToOne;
+            Pointer beta = pointerToZero;
             cudnnPoolingForward(cudnnHandle, poolingDesc, 
                 alpha, srcTensorDesc, srcData, beta, 
                 dstTensorDesc, dstData);
@@ -457,17 +543,13 @@ public class JCudnnMnist
         void softmaxForward(TensorLayout t,
             Pointer srcData, Pointer dstData)
         {
-            resize(t.n * t.c * t.h * t.w, dstData);
+            resize(t.n * t.c * t.h * t.w, dataTypeSize, dstData);
 
-            cudnnSetTensor4dDescriptor(srcTensorDesc, 
-                CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-                t.n, t.c, t.h, t.w);
-            cudnnSetTensor4dDescriptor(dstTensorDesc,
-                CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-                t.n, t.c, t.h, t.w);
-
-            Pointer alpha = pointerTo(1.0f);
-            Pointer beta = pointerTo(0.0f);
+            setTensorDesc(srcTensorDesc, tensorFormat, dataType, t);
+            setTensorDesc(dstTensorDesc, tensorFormat, dataType, t);
+            
+            Pointer alpha = pointerToOne;
+            Pointer beta = pointerToZero;
             cudnnSoftmaxForward(cudnnHandle, 
                 CUDNN_SOFTMAX_ACCURATE, CUDNN_SOFTMAX_MODE_CHANNEL, 
                 alpha, srcTensorDesc, srcData,
@@ -484,17 +566,13 @@ public class JCudnnMnist
             lrnK = 1.0;
             cudnnSetLRNDescriptor(normDesc, lrnN, lrnAlpha, lrnBeta, lrnK);
 
-            resize(t.n * t.c * t.h * t.w, dstData);
+            resize(t.n * t.c * t.h * t.w, dataTypeSize, dstData);
 
-            cudnnSetTensor4dDescriptor(srcTensorDesc, 
-                CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-                t.n, t.c, t.h, t.w);
-            cudnnSetTensor4dDescriptor(dstTensorDesc, 
-                CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-                t.n, t.c, t.h, t.w);
-
-            Pointer alpha = pointerTo(1.0f);
-            Pointer beta = pointerTo(0.0f);
+            setTensorDesc(srcTensorDesc, tensorFormat, dataType, t);
+            setTensorDesc(dstTensorDesc, tensorFormat, dataType, t);
+            
+            Pointer alpha = pointerToOne;
+            Pointer beta = pointerToZero;
             cudnnLRNCrossChannelForward(cudnnHandle, normDesc,
                 CUDNN_LRN_CROSS_CHANNEL_DIM1, 
                 alpha, srcTensorDesc, srcData,
@@ -508,14 +586,10 @@ public class JCudnnMnist
             cudnnSetActivationDescriptor(activDesc, 
                 CUDNN_ACTIVATION_RELU, CUDNN_PROPAGATE_NAN, 0.0);
             
-            resize(t.n * t.c * t.h * t.w, dstData);
+            resize(t.n * t.c * t.h * t.w, dataTypeSize, dstData);
 
-            cudnnSetTensor4dDescriptor(srcTensorDesc, 
-                CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-                t.n, t.c, t.h, t.w);
-            cudnnSetTensor4dDescriptor(dstTensorDesc, 
-                CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-                t.n, t.c, t.h, t.w);
+            setTensorDesc(srcTensorDesc, tensorFormat, dataType, t);
+            setTensorDesc(dstTensorDesc, tensorFormat, dataType, t);
 
             Pointer alpha = pointerTo(1.0f);
             Pointer beta = pointerTo(0.0f);
@@ -527,18 +601,18 @@ public class JCudnnMnist
         
         int classifyExample(String imageFileName)
         {
-            TensorLayout t = new TensorLayout();
+            TensorLayout t = new TensorLayout(0,0,0,0);
             Pointer srcData = new Pointer();
             Pointer dstData = new Pointer();
 
-            float imgData_h[] = 
-                JCudnnMnistUtils.readImageDataUnchecked(imageFileName);
+            Pointer imgData_h = 
+                JCudnnMnistUtils.readImageDataUnchecked(imageFileName, dataType);
 
             System.out.println("Performing forward propagation ...");
 
-            cudaMalloc(srcData, IMAGE_H * IMAGE_W * Sizeof.FLOAT);
-            cudaMemcpy(srcData, Pointer.to(imgData_h), IMAGE_H * IMAGE_W
-                * Sizeof.FLOAT, cudaMemcpyHostToDevice);
+            cudaMalloc(srcData, IMAGE_H * IMAGE_W * dataTypeSize);
+            cudaMemcpy(srcData, imgData_h, IMAGE_H * IMAGE_W
+                * dataTypeSize, cudaMemcpyHostToDevice);
 
             t.n = 1;
             t.c = 1;
@@ -558,19 +632,12 @@ public class JCudnnMnist
             softmaxForward(t, srcData, dstData);
 
             int max_digits = 10;
-            float result[] = new float[max_digits];
-            cudaMemcpy(Pointer.to(result), dstData, 
-                max_digits * Sizeof.FLOAT,
-                cudaMemcpyDeviceToHost);
-            int id = 0;
-            for (int i = 1; i < max_digits; i++)
-            {
-                if (result[id] < result[i])
-                    id = i;
-            }
-
+            int id = JCudnnMnistUtils.computeIndexOfMax(
+                dstData, max_digits, dataType);
+            
             System.out.println("Resulting weights from Softmax:");
-            JCudnnMnistUtils.printDeviceVector(t.n * t.c * t.h * t.w, dstData);
+            JCudnnMnistUtils.printDeviceVector(
+                t.n * t.c * t.h * t.w, dstData, dataType);
 
             cudaFree(srcData);
             cudaFree(dstData);
@@ -578,24 +645,20 @@ public class JCudnnMnist
         }
     }
 
-    private static Pointer createDevicePointer(float data[])
-    {
-        int size = data.length * Sizeof.FLOAT;
-        Pointer deviceData = new Pointer();
-        cudaMalloc(deviceData, size);
-        cudaMemcpy(deviceData, Pointer.to(data), size, cudaMemcpyHostToDevice);
-        return deviceData;
-    }
 
-    private static void resize(int numberOfFloatElements, Pointer data)
+    private static void resize(int numberOfElements, int dataTypeSize, Pointer data)
     {
         cudaFree(data);
-        cudaMalloc(data, numberOfFloatElements * Sizeof.FLOAT);
+        cudaMalloc(data, numberOfElements * dataTypeSize);
     }
     
     private static Pointer pointerTo(float value)
     {
         return Pointer.to(new float[] { value });
+    }
+    private static Pointer pointerTo(double value)
+    {
+        return Pointer.to(new double[] { value });
     }
     
     

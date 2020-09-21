@@ -8,7 +8,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <jcuda.jcudaVersion>10.0.0</jcuda.jcudaVersion>
+        <jcuda.jcudaVersion>11.0.0</jcuda.jcudaVersion>
     </properties>
 
     <name>JCudaSamples</name>
@@ -73,11 +73,6 @@
         <dependency>
             <groupId>org.jcuda</groupId>
             <artifactId>jcudnn</artifactId>
-            <version>${jcuda.jcudaVersion}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.jcuda</groupId>
-            <artifactId>jnvgraph</artifactId>
             <version>${jcuda.jcudaVersion}</version>
         </dependency>
         <dependency>
